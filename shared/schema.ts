@@ -8,9 +8,9 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   name: text("name").notNull(),
   role: text("role", { enum: ["student", "instructor"] }).notNull(),
-  email: text("email"),
-  bio: text("bio"),
-  profilePicture: text("profile_picture"),
+  email: text("email").default(''),
+  bio: text("bio").default(''),
+  profilePicture: text("profile_picture").default(''),
   lastActive: timestamp("last_active").defaultNow(),
 });
 
@@ -19,7 +19,7 @@ export const courses = pgTable("courses", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   instructorId: integer("instructor_id").notNull(),
-  content: text("content"),
+  content: text("content").default(''),
   isPublished: boolean("is_published").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -42,8 +42,8 @@ export const assessments = pgTable("assessments", {
   description: text("description").notNull(),
   maxScore: integer("max_score").notNull(),
   dueDate: timestamp("due_date"),
-  type: text("type", { enum: ["quiz", "assignment", "project"] }).notNull(),
-  content: text("content").notNull(),
+  type: text("type", { enum: ["quiz", "assignment", "project"] }).notNull().default('quiz'),
+  content: text("content").notNull().default(''),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
