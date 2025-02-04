@@ -3,7 +3,7 @@ fetch('/api/courses', {
 })
 ```
 
-2. Session cookie is automatically managed by the browser
+Session cookie is automatically managed by the browser.
 
 ## API Endpoints
 
@@ -16,14 +16,12 @@ Body: {
   "username": string,
   "password": string,
   "name": string,
-  "role": "student" | "instructor"
+  "role": "student" | "instructor",
+  "email": string?,
+  "bio": string?,
+  "profilePicture": string?
 }
-Response: {
-  "id": number,
-  "username": string,
-  "name": string,
-  "role": string
-}
+Response: User object
 ```
 
 #### Login
@@ -33,12 +31,7 @@ Body: {
   "username": string,
   "password": string
 }
-Response: {
-  "id": number,
-  "username": string,
-  "name": string,
-  "role": string
-}
+Response: User object
 ```
 
 #### Logout
@@ -50,15 +43,22 @@ Response: 200 OK
 #### Get Current User
 ```
 GET /api/user
-Response: {
-  "id": number,
-  "username": string,
-  "name": string,
-  "role": string
-} | 401 Unauthorized
+Response: User object | 401 Unauthorized
 ```
 
-### 2. Course Management (Instructor Only)
+#### Update User Profile
+```
+PATCH /api/users/:id
+Body: {
+  "name"?: string,
+  "email"?: string,
+  "bio"?: string,
+  "profilePicture"?: string
+}
+Response: Updated user object
+```
+
+### 2. Course Management (Instructor)
 
 #### Create Course
 ```
@@ -67,14 +67,11 @@ Requires: Instructor role
 Body: {
   "title": string,
   "description": string,
-  "instructorId": number
+  "instructorId": number,
+  "content"?: string,
+  "isPublished"?: boolean
 }
-Response: {
-  "id": number,
-  "title": string,
-  "description": string,
-  "instructorId": number
-}
+Response: Course object
 ```
 
 #### Update Course
@@ -83,7 +80,9 @@ PATCH /api/courses/:id
 Requires: Course instructor only
 Body: {
   "title"?: string,
-  "description"?: string
+  "description"?: string,
+  "content"?: string,
+  "isPublished"?: boolean
 }
 Response: Updated course object
 ```
@@ -102,7 +101,14 @@ Requires: Authentication
 Response: Course object
 ```
 
-### 3. Assessment Management (Instructor Only)
+#### List Instructor's Courses
+```
+GET /api/instructor/courses
+Requires: Instructor role
+Response: Array of course objects
+```
+
+### 3. Assessment Management (Instructor)
 
 #### Create Assessment
 ```
@@ -111,15 +117,26 @@ Requires: Course instructor only
 Body: {
   "title": string,
   "description": string,
-  "maxScore": number
+  "maxScore": number,
+  "type": "quiz" | "assignment" | "project",
+  "content": string,
+  "dueDate"?: string (ISO date)
 }
-Response: {
-  "id": number,
-  "courseId": number,
-  "title": string,
-  "description": string,
-  "maxScore": number
+Response: Assessment object
+```
+
+#### Update Assessment
+```
+PATCH /api/assessments/:id
+Requires: Course instructor
+Body: {
+  "title"?: string,
+  "description"?: string,
+  "maxScore"?: number,
+  "content"?: string,
+  "dueDate"?: string
 }
+Response: Updated assessment object
 ```
 
 #### List Course Assessments
@@ -127,6 +144,13 @@ Response: {
 GET /api/courses/:courseId/assessments
 Requires: Authentication
 Response: Array of assessment objects
+```
+
+#### Get Assessment
+```
+GET /api/assessments/:id
+Requires: Authentication
+Response: Assessment object
 ```
 
 ### 4. Student Features
@@ -139,21 +163,31 @@ Body: {
   "studentId": number,
   "courseId": number
 }
-Response: {
-  "id": number,
-  "studentId": number,
-  "courseId": number,
-  "progress": number,
-  "completed": boolean,
-  "enrolledAt": string
-}
+Response: Enrollment object
 ```
 
-#### List Enrollments
+#### List Student Enrollments
 ```
 GET /api/enrollments
 Requires: Student role
 Response: Array of enrollment objects
+```
+
+#### Update Enrollment Progress
+```
+PATCH /api/enrollments/:id/progress
+Requires: Student role
+Body: {
+  "progress": number (0-100)
+}
+Response: Updated enrollment object
+```
+
+#### List Student's Assessments
+```
+GET /api/student/assessments
+Requires: Student role
+Response: Array of assessment objects
 ```
 
 #### Submit Assessment
@@ -162,145 +196,39 @@ POST /api/assessments/:assessmentId/submissions
 Requires: Student role
 Body: {
   "studentId": number,
-  "score": number
-}
-Response: {
-  "id": number,
-  "assessmentId": number,
-  "studentId": number,
   "score": number,
-  "submittedAt": string
+  "content": string
 }
+Response: Submission object
 ```
 
-#### List Submissions
+#### List Student's Submissions
 ```
 GET /api/submissions
 Requires: Student role
 Response: Array of submission objects
 ```
 
-## Error Handling
+### 5. Assessment Grading (Instructor)
 
-The API uses standard HTTP status codes:
+#### List Assessment Submissions
+```
+GET /api/assessments/:assessmentId/submissions
+Requires: Instructor role
+Response: Array of submission objects
+```
 
-- 200: Success
-- 201: Created
-- 400: Bad Request (invalid input)
-- 401: Unauthorized (not logged in)
-- 403: Forbidden (not enough permissions)
-- 404: Not Found
-
-Error responses include a message:
-```json
-{
-  "message": "Error description"
+#### Grade Submission
+```
+PATCH /api/submissions/:id
+Requires: Instructor role
+Body: {
+  "score": number,
+  "feedback": string,
+  "status": "pending" | "graded" | "late"
 }
+Response: Updated submission object
 ```
-
-## Example Usage
-
-### Authentication Flow Example
-
-```javascript
-// Register a new instructor
-const registerResponse = await fetch('/api/register', {
-  method: 'POST',
-  credentials: 'include',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    username: 'instructor1',
-    password: 'secure123',
-    name: 'John Doe',
-    role: 'instructor'
-  })
-});
-
-// Login
-const loginResponse = await fetch('/api/login', {
-  method: 'POST',
-  credentials: 'include',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    username: 'instructor1',
-    password: 'secure123'
-  })
-});
-
-const user = await loginResponse.json();
-```
-
-### Course Management Example (as Instructor)
-
-```javascript
-// Create a new course
-const createCourseResponse = await fetch('/api/courses', {
-  method: 'POST',
-  credentials: 'include',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    title: 'Web Development 101',
-    description: 'Learn the basics of web development',
-    instructorId: user.id
-  })
-});
-
-// Add an assessment to the course
-const courseId = 1;
-const createAssessmentResponse = await fetch(`/api/courses/${courseId}/assessments`, {
-  method: 'POST',
-  credentials: 'include',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    title: 'Final Project',
-    description: 'Build a simple website',
-    maxScore: 100
-  })
-});
-```
-
-### Student Actions Example
-
-```javascript
-// Enroll in a course
-const enrollResponse = await fetch('/api/enrollments', {
-  method: 'POST',
-  credentials: 'include',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    studentId: user.id,
-    courseId: 1
-  })
-});
-
-// Submit an assessment
-const assessmentId = 1;
-const submitResponse = await fetch(`/api/assessments/${assessmentId}/submissions`, {
-  method: 'POST',
-  credentials: 'include',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    studentId: user.id,
-    score: 85
-  })
-});
-```
-
-## Testing
-
-All endpoints have been tested and verified using automated test scripts. You can find example test cases in `test_api.py`.
 
 ## Data Models
 
@@ -311,6 +239,10 @@ All endpoints have been tested and verified using automated test scripts. You ca
   username: string;
   name: string;
   role: "student" | "instructor";
+  email?: string;
+  bio?: string;
+  profilePicture?: string;
+  lastActive: string;
 }
 ```
 
@@ -321,6 +253,10 @@ All endpoints have been tested and verified using automated test scripts. You ca
   title: string;
   description: string;
   instructorId: number;
+  content?: string;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 
@@ -332,6 +268,10 @@ All endpoints have been tested and verified using automated test scripts. You ca
   title: string;
   description: string;
   maxScore: number;
+  type: "quiz" | "assignment" | "project";
+  content: string;
+  dueDate?: string;
+  createdAt: string;
 }
 ```
 
@@ -344,6 +284,7 @@ All endpoints have been tested and verified using automated test scripts. You ca
   progress: number;
   completed: boolean;
   enrolledAt: string;
+  lastAccessed: string;
 }
 ```
 
@@ -354,5 +295,25 @@ All endpoints have been tested and verified using automated test scripts. You ca
   assessmentId: number;
   studentId: number;
   score: number;
+  content: string;
+  feedback?: string;
+  status: "pending" | "graded" | "late";
   submittedAt: string;
+}
+```
+
+## Error Handling
+
+The API uses standard HTTP status codes:
+- 200: Success
+- 201: Created
+- 400: Bad Request (invalid input)
+- 401: Unauthorized (not logged in)
+- 403: Forbidden (not enough permissions)
+- 404: Not Found
+
+Error responses include a message:
+```json
+{
+  "message": "Error description"
 }

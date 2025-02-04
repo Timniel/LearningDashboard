@@ -8,6 +8,10 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   name: text("name").notNull(),
   role: text("role", { enum: ["student", "instructor"] }).notNull(),
+  email: text("email"),
+  bio: text("bio"),
+  profilePicture: text("profile_picture"),
+  lastActive: timestamp("last_active").defaultNow(),
 });
 
 export const courses = pgTable("courses", {
@@ -15,6 +19,10 @@ export const courses = pgTable("courses", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   instructorId: integer("instructor_id").notNull(),
+  content: text("content"),
+  isPublished: boolean("is_published").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const enrollments = pgTable("enrollments", {
@@ -24,6 +32,7 @@ export const enrollments = pgTable("enrollments", {
   progress: integer("progress").notNull().default(0),
   completed: boolean("completed").notNull().default(false),
   enrolledAt: timestamp("enrolled_at").notNull().defaultNow(),
+  lastAccessed: timestamp("last_accessed").defaultNow(),
 });
 
 export const assessments = pgTable("assessments", {
@@ -32,6 +41,10 @@ export const assessments = pgTable("assessments", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   maxScore: integer("max_score").notNull(),
+  dueDate: timestamp("due_date"),
+  type: text("type", { enum: ["quiz", "assignment", "project"] }).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const assessmentSubmissions = pgTable("assessment_submissions", {
@@ -39,7 +52,10 @@ export const assessmentSubmissions = pgTable("assessment_submissions", {
   assessmentId: integer("assessment_id").notNull(),
   studentId: integer("student_id").notNull(),
   score: integer("score").notNull(),
+  feedback: text("feedback"),
+  status: text("status", { enum: ["pending", "graded", "late"] }).notNull().default("pending"),
   submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+  content: text("content").notNull(),
 });
 
 // Insert Schemas
@@ -48,6 +64,9 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   name: true,
   role: true,
+  email: true,
+  bio: true,
+  profilePicture: true,
 });
 
 export const insertCourseSchema = createInsertSchema(courses);
