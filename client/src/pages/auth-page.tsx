@@ -40,11 +40,11 @@ export default function AuthPage() {
     },
   });
 
-  const onSubmit = (data: LoginFields | RegisterFields) => {
+  const onSubmit = async (data: LoginFields | RegisterFields) => {
     if (isRegister) {
-      registerMutation.mutate(data as RegisterFields);
+      await registerMutation.mutateAsync(data as RegisterFields);
     } else {
-      loginMutation.mutate(data as LoginFields);
+      await loginMutation.mutateAsync(data as LoginFields);
     }
   };
 
