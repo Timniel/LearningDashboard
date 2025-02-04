@@ -1,12 +1,16 @@
 import { 
-  User, InsertUser, Course, InsertCourse,
-  Enrollment, InsertEnrollment, Assessment,
-  InsertAssessment, Submission, InsertSubmission 
+  users, courses, enrollments, assessments, assessmentSubmissions,
+  type User, type InsertUser, type Course, type InsertCourse,
+  type Enrollment, type InsertEnrollment, type Assessment,
+  type InsertAssessment, type Submission, type InsertSubmission 
 } from "@shared/schema";
-import createMemoryStore from "memorystore";
-import session, { Store } from "express-session";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 
-const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   // User operations
@@ -37,150 +41,139 @@ export interface IStorage {
   getSubmission(id: number): Promise<Submission | undefined>;
   listStudentSubmissions(studentId: number): Promise<Submission[]>;
 
-  sessionStore: Store;
+  sessionStore: session.Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private courses: Map<number, Course>;
-  private enrollments: Map<number, Enrollment>;
-  private assessments: Map<number, Assessment>;
-  private submissions: Map<number, Submission>;
-  sessionStore: Store;
-  private currentIds: { [key: string]: number };
+export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
-    this.courses = new Map();
-    this.enrollments = new Map();
-    this.assessments = new Map();
-    this.submissions = new Map();
-    this.sessionStore = new MemoryStore({ checkPeriod: 86400000 });
-    this.currentIds = {
-      users: 1,
-      courses: 1,
-      enrollments: 1,
-      assessments: 1,
-      submissions: 1
-    };
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true,
+    });
   }
 
+  // User operations
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentIds.users++;
-    const user = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
-  async createCourse(insertCourse: InsertCourse): Promise<Course> {
-    const id = this.currentIds.courses++;
-    const course = { ...insertCourse, id };
-    this.courses.set(id, course);
-    return course;
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values(user).returning();
+    return newUser;
+  }
+
+  // Course operations
+  async createCourse(course: InsertCourse): Promise<Course> {
+    const [newCourse] = await db.insert(courses).values(course).returning();
+    return newCourse;
   }
 
   async getCourse(id: number): Promise<Course | undefined> {
-    return this.courses.get(id);
+    const [course] = await db.select().from(courses).where(eq(courses.id, id));
+    return course;
   }
 
   async updateCourse(id: number, data: Partial<InsertCourse>): Promise<Course | undefined> {
-    const course = this.courses.get(id);
-    if (!course) return undefined;
-
-    const updated = { ...course, ...data };
-    this.courses.set(id, updated);
-    return updated;
+    const [updatedCourse] = await db
+      .update(courses)
+      .set(data)
+      .where(eq(courses.id, id))
+      .returning();
+    return updatedCourse;
   }
 
   async deleteCourse(id: number): Promise<boolean> {
-    return this.courses.delete(id);
+    const [deletedCourse] = await db
+      .delete(courses)
+      .where(eq(courses.id, id))
+      .returning();
+    return !!deletedCourse;
   }
 
   async listCourses(): Promise<Course[]> {
-    return Array.from(this.courses.values());
+    return db.select().from(courses);
   }
 
-  async createEnrollment(insertEnrollment: InsertEnrollment): Promise<Enrollment> {
-    const id = this.currentIds.enrollments++;
-    const enrollment = { 
-      ...insertEnrollment,
-      id,
-      enrolledAt: new Date(),
-      progress: 0,
-      completed: false
-    };
-    this.enrollments.set(id, enrollment);
-    return enrollment;
+  // Enrollment operations
+  async createEnrollment(enrollment: InsertEnrollment): Promise<Enrollment> {
+    const [newEnrollment] = await db.insert(enrollments).values(enrollment).returning();
+    return newEnrollment;
   }
 
   async getEnrollment(studentId: number, courseId: number): Promise<Enrollment | undefined> {
-    return Array.from(this.enrollments.values()).find(
-      e => e.studentId === studentId && e.courseId === courseId
-    );
+    const [enrollment] = await db
+      .select()
+      .from(enrollments)
+      .where(eq(enrollments.studentId, studentId))
+      .where(eq(enrollments.courseId, courseId));
+    return enrollment;
   }
 
   async updateEnrollment(id: number, data: Partial<InsertEnrollment>): Promise<Enrollment | undefined> {
-    const enrollment = this.enrollments.get(id);
-    if (!enrollment) return undefined;
-
-    const updated = { ...enrollment, ...data };
-    this.enrollments.set(id, updated);
-    return updated;
+    const [updatedEnrollment] = await db
+      .update(enrollments)
+      .set(data)
+      .where(eq(enrollments.id, id))
+      .returning();
+    return updatedEnrollment;
   }
 
   async listEnrollments(studentId: number): Promise<Enrollment[]> {
-    return Array.from(this.enrollments.values()).filter(
-      e => e.studentId === studentId
-    );
+    return db
+      .select()
+      .from(enrollments)
+      .where(eq(enrollments.studentId, studentId));
   }
 
-  async createAssessment(insertAssessment: InsertAssessment): Promise<Assessment> {
-    const id = this.currentIds.assessments++;
-    const assessment = { ...insertAssessment, id };
-    this.assessments.set(id, assessment);
-    return assessment;
+  // Assessment operations
+  async createAssessment(assessment: InsertAssessment): Promise<Assessment> {
+    const [newAssessment] = await db.insert(assessments).values(assessment).returning();
+    return newAssessment;
   }
 
   async getAssessment(id: number): Promise<Assessment | undefined> {
-    return this.assessments.get(id);
+    const [assessment] = await db.select().from(assessments).where(eq(assessments.id, id));
+    return assessment;
   }
 
   async listCourseAssessments(courseId: number): Promise<Assessment[]> {
-    return Array.from(this.assessments.values()).filter(
-      a => a.courseId === courseId
-    );
+    return db
+      .select()
+      .from(assessments)
+      .where(eq(assessments.courseId, courseId));
   }
 
-  async createSubmission(insertSubmission: InsertSubmission): Promise<Submission> {
-    const id = this.currentIds.submissions++;
-    const submission = { 
-      ...insertSubmission,
-      id,
-      submittedAt: new Date()
-    };
-    this.submissions.set(id, submission);
-    return submission;
+  // Submission operations
+  async createSubmission(submission: InsertSubmission): Promise<Submission> {
+    const [newSubmission] = await db
+      .insert(assessmentSubmissions)
+      .values(submission)
+      .returning();
+    return newSubmission;
   }
 
   async getSubmission(id: number): Promise<Submission | undefined> {
-    return this.submissions.get(id);
+    const [submission] = await db
+      .select()
+      .from(assessmentSubmissions)
+      .where(eq(assessmentSubmissions.id, id));
+    return submission;
   }
 
   async listStudentSubmissions(studentId: number): Promise<Submission[]> {
-    return Array.from(this.submissions.values()).filter(
-      s => s.studentId === studentId
-    );
+    return db
+      .select()
+      .from(assessmentSubmissions)
+      .where(eq(assessmentSubmissions.studentId, studentId));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
