@@ -34,6 +34,7 @@ app.use((req, res, next) => {
   next();
 });
 
+// API routes
 const server = registerRoutes(app);
 
 // Error handling middleware
@@ -41,10 +42,9 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
   res.status(status).json({ message });
-  throw err;
+  console.error(err); // Log the error instead of throwing
 });
 
-// ALWAYS serve the API on port 5000
 const PORT = 5000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`API server running on port ${PORT}`);
